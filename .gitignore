@@ -1,0 +1,64 @@
+# ==========================================
+# 1. Python Bytecode & Cache
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ==========================================
+# 2. Virtual Environments & Packaging
+# ==========================================
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ==========================================
+# 3. Environment Variables & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# 4. Local Generated Data & Pipeline Outputs
+# ==========================================
+data/*
+!data/.gitkeep
+output/
+output_*/
+*.jsonl
+incident_reports/
+
+# ==========================================
+# 5. Database & Docker Artifacts
+# ==========================================
+mg_lib/
+mg_log/
+mg_etc/
+*.pid
+
+# ==========================================
+# 6. IDE, Editors & System Garbage
+# ==========================================
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
+
+# ==========================================
+# 7. Testing & Coverage
+# ==========================================
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/

@@ -1,0 +1,4 @@
+# This directory holds pipeline outputs written by main.py
+# (logs.jsonl, alerts.json, clusters.json, incident_reports/).
+# Kept in git via this placeholder file; feel free to .gitignore
+# the generated contents themselves.
