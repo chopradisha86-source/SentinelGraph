@@ -1,0 +1,48 @@
+services:
+  memgraph:
+    # memgraph-platform bundles Memgraph + MAGE algorithms + Memgraph Lab
+    # into a single container (run under supervisord), so there's no need
+    # for a separate 'lab' service.
+    image: memgraph/memgraph-platform
+    container_name: memgraph
+    ports:
+      - "7687:7687"   # Bolt protocol (used by gqlalchemy / main.py)
+      - "7444:7444"   # log/websocket stream that Lab reads from
+      - "3000:3000"   # Memgraph Lab web UI -- http://localhost:3000
+    healthcheck:
+      # mgconsole ships inside the image; a trivial query confirms the
+      # Bolt server is actually accepting connections, not just that the
+      # container process has started.
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --host 127.0.0.1 --port 7687 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+
+  app:
+    build: .
+    container_name: observability-app
+    ports:
+      - "8000:8000"
+    depends_on:
+      memgraph:
+        condition: service_healthy
+    environment:
+      MEMGRAPH_HOST: memgraph
+      MEMGRAPH_PORT: 7687
+      # Set your key in a local .env file (see .env.example) rather than
+      # hardcoding it here. Compose automatically loads .env if present.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # app.py's live-stream tuning, overridable via .env too:
+      STREAM_INTERVAL_SECONDS: ${STREAM_INTERVAL_SECONDS:-1.0}
+      BURST_WINDOW_SECONDS: ${BURST_WINDOW_SECONDS:-120}
+      BURST_THRESHOLD: ${BURST_THRESHOLD:-5}
+    # Mount ./data so batch runs (main.py) write output you can see on the
+    # host, and code changes are picked up without rebuilding the image.
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  memgraph_data:
