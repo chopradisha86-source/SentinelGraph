@@ -30,6 +30,8 @@ import logging
 import os
 import sys
 
+from dotenv import load_dotenv
+load_dotenv()
 from src import ai_synthesis, clusterer, detector, generator
 from src.db_handler import MemgraphConnectionError, MemgraphHandler
 
