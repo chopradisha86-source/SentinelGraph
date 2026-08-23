@@ -11,7 +11,7 @@ It's designed as a research-oriented prototype for distributed job monitoring, a
 ## Quick Start
 
 ```bash
-git clone https://github.com/<your-username>/SentinelGraph.git && cd SentinelGraph
+git clone https://github.com/chopradisha86-source/SentinelGraph.git && cd SentinelGraph
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # add your GEMINI_API_KEY
@@ -46,42 +46,42 @@ See [Setup](#setup) for full instructions, including Memgraph and Docker.
 ## Architecture
 
 ```
-                         ┌────────────────────────────┐
-                         │      Log Stream Source        │
+                         ┌────────────────────────────────┐
+                         │      Log Stream Source         │
                          │      src/generator.py          │
                          │  (synthetic or real telemetry) │
                          └───────────────┬────────────────┘
                                          │
                                          ▼
                          ┌────────────────────────────┐
-                         │    FastAPI / WebSockets       │
-                         │    app.py  →  /ws/logs         │
-                         └───────────────┬────────────────┘
+                         │    FastAPI / WebSockets    │
+                         │    app.py  →  /ws/logs     │
+                         └───────────────┬────────────┘
                                          │
                      ┌───────────────────┴───────────────────┐
                      ▼                                        ▼
        ┌────────────────────────────┐         ┌────────────────────────────┐
-       │        Detector                │         │     Memgraph Graph Store       │
-       │      src/detector.py           │         │      src/db_handler.py          │
-       │  rolling-window burst           │         │  :Job nodes,                    │
-       │  detection → alerts.json        │         │  :FAILED_TOGETHER edges          │
-       └───────────────┬────────────────┘         └────────────────────────────┘
+       │        Detector            │         │     Memgraph Graph Store   │
+       │      src/detector.py       │         │      src/db_handler.py     │
+       │  rolling-window burst      │         │  :Job nodes,               │
+       │  detection → alerts.json   │         │  :FAILED_TOGETHER edges    │
+       └───────────────┬────────────┘         └────────────────────────────┘
                        ▼
        ┌────────────────────────────┐
-       │        Clusterer                │
-       │      src/clusterer.py           │
-       │  TF-IDF + DBSCAN                 │
-       │  → clusters.json                 │
-       └───────────────┬────────────────┘
+       │        Clusterer           │
+       │      src/clusterer.py      │
+       │  TF-IDF + DBSCAN           │
+       │  → clusters.json           │
+       └───────────────┬────────────┘
                        ▼
        ┌────────────────────────────┐
-       │     Gemini LLM Synthesis        │
-       │    src/ai_synthesis.py          │
-       └───────────────┬────────────────┘
+       │     Gemini LLM Synthesi    │
+       │    src/ai_synthesis.py     │
+       └───────────────┬────────────┘
                        ▼
        ┌────────────────────────────┐
-       │     Markdown Post-Mortems       │
-       │   output/incident_reports/       │
+       │     Markdown Post-Mortem   │
+       │   output/incident_reports  │
        └────────────────────────────┘
 ```
 
@@ -109,7 +109,7 @@ Two independent consumers sit downstream of ingestion: the **Detector → Cluste
 | Data processing | pandas |
 | Clustering | scikit-learn (TF-IDF, DBSCAN) |
 | Graph persistence | Memgraph (via gqlalchemy, Bolt protocol) |
-| AI synthesis | Google Gemini API (`google-genai`) |
+| AI synthesis | Google Gemini API (`google-genai`) — `gemini-3.5-flash-lite` |
 | Synthetic data | Faker |
 | Deployment | Docker, Docker Compose |
 
@@ -148,7 +148,7 @@ SentinelGraph/
 
 ```bash
 # 1. Clone and enter the repo
-git clone https://github.com/<your-username>/SentinelGraph.git
+git clone https://github.com/chopradisha86-source/SentinelGraph.git
 cd SentinelGraph
 
 # 2. Create and activate a virtual environment
@@ -212,7 +212,9 @@ Full flag reference:
 --min-samples 3           # DBSCAN min_samples
 
 --skip-ai                 # skip Gemini report generation (e.g. no API key configured)
---gemini-model gemini-2.5-flash   # Gemini model name
+--gemini-model gemini-3.5-flash-lite   # Gemini model name (defaults to gemini-2.5-flash in code;
+                                          #   override with this flag or edit DEFAULT_MODEL in
+                                          #   src/ai_synthesis.py to change the default)
 --max-reports 5            # max clusters to generate AI reports for (largest first)
 ```
 
@@ -302,6 +304,8 @@ Streams one message per tick (default: every second).
 ```json
 { "type": "incident_report", "cluster_id": 0, "report": "Incident Overview\n\n* Primary Failing Service: payment\n..." }
 ```
+
+> **Note:** `app.py`'s live `generate_report` command always uses `DEFAULT_MODEL` from `src/ai_synthesis.py` (currently `gemini-2.5-flash`) — it doesn't expose a per-request model override the way `main.py --gemini-model` does. If you want the live server to use `gemini-3.5-flash-lite` (or any other model), pass it explicitly when calling `generate_incident_report()` from your own code, or change `DEFAULT_MODEL` in `src/ai_synthesis.py`.
 
 ---
 
