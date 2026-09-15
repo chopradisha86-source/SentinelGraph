@@ -38,6 +38,7 @@ See [Setup](#setup) for full instructions, including Memgraph and Docker.
   - [Live server (`app.py`)](#live-server-apppy)
 - [API Reference](#api-reference)
 - [Sample Output](#sample-output)
+- [Evaluation](#evaluation)
 - [Research Roadmap](#research-roadmap)
 - [License](#license)
 
@@ -93,7 +94,7 @@ Two independent consumers sit downstream of ingestion: the **Detector → Cluste
 
 - **Real-time telemetry streaming** over WebSockets, with a REST root endpoint and interactive OpenAPI docs at `/docs`.
 - **Rolling-window anomaly detection** — flags a service the moment its trailing failure count exceeds a configurable threshold within a configurable time window, with rising-edge alerting to avoid duplicate spam during sustained outages.
-- **Unsupervised error clustering** via TF-IDF vectorization + DBSCAN (cosine distance), grouping related failures without predefined error categories.
+- **Unsupervised error clustering** via TF-IDF vectorization + DBSCAN (cosine distance), grouping related failures without predefined error categories, plus an evaluated semantic-embedding variant (see [Evaluation](#evaluation)).
 - **Graph-based failure correlation** — Memgraph-backed `:Job` nodes and `:FAILED_TOGETHER` relationships linking failures from the same distributed trace.
 - **LLM-synthesized incident post-mortems** — Gemini API integration that turns a cluster of related error logs into a structured, on-call-ready Markdown report (Incident Overview, Timeline of Events, Recommended Remediation).
 - **Two execution modes**: a batch CLI (`main.py`) for offline analysis of a log corpus, and a live server (`app.py`) for continuous monitoring, including an on-demand WebSocket command to generate an incident report for any currently-forming cluster.
@@ -107,7 +108,7 @@ Two independent consumers sit downstream of ingestion: the **Detector → Cluste
 |---|---|
 | API / streaming | FastAPI, WebSockets, Uvicorn |
 | Data processing | pandas |
-| Clustering | scikit-learn (TF-IDF, DBSCAN) |
+| Clustering | scikit-learn (TF-IDF, DBSCAN); sentence-transformers (semantic embeddings variant) |
 | Graph persistence | Memgraph (via gqlalchemy, Bolt protocol) |
 | AI synthesis | Google Gemini API (`google-genai`) — `gemini-3.5-flash-lite` |
 | Synthetic data | Faker |
@@ -121,18 +122,22 @@ Two independent consumers sit downstream of ingestion: the **Detector → Cluste
 SentinelGraph/
 ├── src/
 │   ├── __init__.py
-│   ├── generator.py       # synthetic telemetry log generation
-│   ├── db_handler.py      # Memgraph ingestion + FAILED_TOGETHER correlation
-│   ├── detector.py        # rolling-window failure-burst detection
-│   ├── clusterer.py       # TF-IDF + DBSCAN error clustering
-│   └── ai_synthesis.py    # Gemini API incident/post-mortem synthesis
+│   ├── generator.py               # synthetic telemetry log generation
+│   ├── db_handler.py              # Memgraph ingestion + FAILED_TOGETHER correlation
+│   ├── detector.py                # rolling-window failure-burst detection
+│   ├── clusterer.py                # TF-IDF + DBSCAN error clustering
+│   ├── clusterer_embeddings.py    # semantic-embedding clustering variant
+│   └── ai_synthesis.py             # Gemini API incident/post-mortem synthesis
 ├── output/
 │   ├── alerts.json
 │   ├── clusters.json
 │   └── incident_reports/
 │       └── cluster_0.md
-├── main.py                 # CLI batch pipeline runner
-├── app.py                  # FastAPI + WebSocket live server
+├── main.py                          # CLI batch pipeline runner
+├── app.py                           # FastAPI + WebSocket live server
+├── eval_clustering.py                # clustering quality eval (lexically-distinct errors)
+├── eval_clustering_hard.py           # clustering eval (paraphrased failure variants)
+├── eval_clustering_embeddings.py     # embeddings vs. TF-IDF comparison
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
@@ -355,11 +360,38 @@ Every report follows this fixed three-section structure (Incident Overview / Tim
 
 ---
 
+## Evaluation
+
+`src/clusterer.py` was evaluated against two synthetic test sets using the `eval_clustering*.py` scripts included in this repo, to move beyond "it runs" and actually measure clustering quality.
+
+**Easy test** (20 lexically-distinct known error types, `eval_clustering.py`): TF-IDF + DBSCAN achieves 20/20 correct separation with 0 false merges across `eps` 0.3–0.8.
+
+**Hard test** (5 underlying failures, each with 4 paraphrased variants — realistic for logs written by different services/authors describing the same failure differently, `eval_clustering_hard.py`): TF-IDF + DBSCAN cannot unify paraphrases and keep unrelated errors apart at the same time. The only `eps` that unifies 4/5 semantic groups (`eps=0.9`) also produces 14 false merges on the easy test — raising the similarity threshold enough to recognize paraphrases also starts merging genuinely unrelated errors.
+
+Replacing TF-IDF with sentence-transformer embeddings (`src/clusterer_embeddings.py`, `all-MiniLM-L6-v2`) resolves this: at `eps ≥ 0.4`, the same hard test achieves 5/5 correct unification with **zero false merges observed across the entire swept range** (`eps` 0.1–0.5) — no precision/recall cliff, unlike the lexical approach.
+
+| Method | Best config | Semantic groups unified | False merges |
+|---|---|---|---|
+| TF-IDF + DBSCAN | eps=0.9 | 4/5 | 14 (on easy test) |
+| Sentence embeddings + DBSCAN | eps≥0.4 | 5/5 | 0 |
+
+Caveat: false merges were not observed within the tested `eps` range for the embedding variant, but higher values weren't swept — this isn't a claim that embeddings never merge, only what was measured.
+
+Reproduce this yourself:
+
+```bash
+python eval_clustering.py --sweep --count 4000 --seed 42
+python eval_clustering_hard.py --eps 0.5 --count 2000 --seed 42
+python eval_clustering_embeddings.py --sweep --count 2000 --seed 42
+```
+
+---
+
 ## Research Roadmap
 
-Directions under active exploration, extending the current TF-IDF/DBSCAN and per-service burst-detection baselines:
+Directions under active exploration, extending the current baselines:
 
-- [ ] **Semantic log embeddings** (sentence-transformers + HDBSCAN) in place of TF-IDF, to cluster failures by meaning rather than lexical overlap, and to handle clusters of varying density without a fixed `eps`.
+- [x] **Semantic log embeddings** — implemented (`src/clusterer_embeddings.py`) and evaluated against TF-IDF (see [Evaluation](#evaluation)); resolves the precision/recall tradeoff inherent to lexical (word-overlap) similarity, at the cost of requiring a local embedding model instead of pure scikit-learn.
 - [ ] **Cross-service failure propagation modeling** — mining the Memgraph `:FAILED_TOGETHER` graph for repeated service-to-service failure sequences, to predict cascading failures rather than only detect bursts after the fact.
 - [ ] **Retrieval-augmented incident synthesis** — conditioning the Gemini prompt on the most similar past incident reports, to evaluate whether few-shot retrieval reduces root-cause hallucination versus the current zero-shot approach.
 
