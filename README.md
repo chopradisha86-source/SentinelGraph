@@ -1,6 +1,6 @@
 # SentinelGraph
 
-**An AI-powered distributed failure tracking and telemetry observability framework.**
+**An AI powered distributed failure tracking and telemetry observability framework.**
 
 SentinelGraph ingests telemetry from background job pipelines, correlates failures across services in a graph database, detects abnormal failure bursts in real time, clusters related errors using unsupervised ML, and synthesizes structured incident post-mortems using an LLM — all exposed live over a WebSocket stream and available as a batch CLI pipeline.
 
