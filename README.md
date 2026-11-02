@@ -2,9 +2,9 @@
 
 **An AI powered distributed failure tracking and telemetry observability framework.**
 
-SentinelGraph ingests telemetry from background job pipelines, correlates failures across services in a graph database, detects abnormal failure bursts in real time, clusters related errors using unsupervised ML, and synthesizes structured incident post-mortems using an LLM — all exposed live over a WebSocket stream and available as a batch CLI pipeline.
+SentinelGraph ingests telemetry from background job pipelines, correlates failures across services in a graph database, detects abnormal failure bursts in real time, clusters related errors using unsupervised ML, and synthesizes structured incident post-mortems using an LLM, all exposed live over a WebSocket stream and available as a batch CLI pipeline.
 
-It's designed as a research-oriented prototype for distributed job monitoring, automated log clustering, and root-cause synthesis — the kind of system a small platform/SRE team would run in front of a microservices architecture to cut down diagnostic time during incidents.
+It's designed as a research-oriented prototype for distributed job monitoring, automated log clustering, and root-cause synthesis, the kind of system a small platform/SRE team would run in front of a microservices architecture to cut down diagnostic time during incidents.
 
 ---
 
